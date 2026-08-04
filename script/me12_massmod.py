@@ -115,6 +115,22 @@ class SapMe12MassMod:
             wait_for_control(self.session, "wnd[0]/tbar[1]/btn[8]", log_func=self.log).Press
             time.sleep(DELAY_AFTER_CLICK)
 
+            # DEBUG: Listar ventanas abiertas para diagnosticar popup
+            self.log(f"  [DEBUG] Ventanas SAP abiertas:")
+            try:
+                for i in range(self.session.Children.Count):
+                    wnd = self.session.Children(i)
+                    self.log(f"    wnd[{i}]: type={wnd.Type}, text='{wnd.Text}', ID='{wnd.Id}'")
+                    # Listar hijos de cada ventana (botones, tablas, etc.)
+                    try:
+                        for j in range(wnd.Children.Count):
+                            child = wnd.Children(j)
+                            self.log(f"      child[{j}]: type={child.Type}, ID='{child.Id}'")
+                    except Exception:
+                        pass
+            except Exception as e:
+                self.log(f"  [DEBUG] Error listando ventanas: {e}")
+
             # PASO 7: Popup de confirmacion (siempre aparece despues de btn[8])
             wait_for_control(self.session, "wnd[1]/tbar[0]/btn[7]", timeout=3.0, log_func=self.log).Press
             time.sleep(DELAY_AFTER_CLICK)
