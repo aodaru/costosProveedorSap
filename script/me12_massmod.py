@@ -118,7 +118,12 @@ class SapMe12MassMod:
                 pass
             time.sleep(0.3)
 
-            # PASO 6: Boton Condiciones
+            # PASO 6: Redimensionar panel y Boton Condiciones
+            try:
+                self.session.findById("wnd[0]").resizeWorkingPane(105, 25, False)
+            except Exception:
+                pass
+            time.sleep(0.3)
             wait_for_control(self.session, "wnd[0]/tbar[1]/btn[8]", log_func=self.log).Press
             time.sleep(DELAY_AFTER_CLICK)
 
