@@ -115,12 +115,9 @@ class SapMe12MassMod:
             wait_for_control(self.session, "wnd[0]/tbar[1]/btn[8]", log_func=self.log).Press
             time.sleep(DELAY_AFTER_CLICK)
 
-            # PASO 7: Popup de confirmacion (puede no aparecer)
-            try:
-                self.session.findById("wnd[1]/tbar[0]/btn[7]").Press
-                time.sleep(DELAY_AFTER_CLICK)
-            except Exception:
-                pass  # Popup no aparecio, es normal
+            # PASO 7: Popup de confirmacion (siempre aparece despues de btn[8])
+            wait_for_control(self.session, "wnd[1]/tbar[0]/btn[7]", timeout=3.0, log_func=self.log).Press
+            time.sleep(DELAY_AFTER_CLICK)
 
             # PASO 8: Modificar precio en tabla de condiciones
             precio_id = f"wnd[0]/usr/tblSAPMV13ATCTRL_D0201/txtKONP-KBETR[{CONDITION_ROW},0]"
