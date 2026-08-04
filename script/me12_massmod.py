@@ -111,6 +111,13 @@ class SapMe12MassMod:
             self.session.findById("wnd[0]").SendVKey(0)
             time.sleep(DELAY_AFTER_ENTER)
 
+            # PASO 5b: Dar foco a la ventana antes de buscar botones
+            try:
+                self.session.findById("wnd[0]").SetFocus
+            except Exception:
+                pass
+            time.sleep(0.3)
+
             # PASO 6: Boton Condiciones
             wait_for_control(self.session, "wnd[0]/tbar[1]/btn[8]", log_func=self.log).Press
             time.sleep(DELAY_AFTER_CLICK)
