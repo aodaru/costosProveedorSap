@@ -122,19 +122,23 @@ class SapMe12MassMod:
             wait_for_control(self.session, "wnd[0]/tbar[1]/btn[8]", log_func=self.log).Press
             time.sleep(DELAY_AFTER_CLICK)
 
+            # DEBUG: Diagnosticar toolbar y botones
+            self.log(f"  [DEBUG] Diagnosticando toolbar tbar[1]:")
+            try:
+                tbar1 = self.session.findById("wnd[0]/tbar[1]")
+                self.log(f"    tbar[1] encontrado: type={tbar1.Type}, children={tbar1.Children.Count}")
+                for j in range(tbar1.Children.Count):
+                    btn = tbar1.Children(j)
+                    self.log(f"      btn[{j}]: type={btn.Type}, ID='{btn.Id}', enabled={btn.Enabled}, visible={btn.Visible}")
+            except Exception as e:
+                self.log(f"  [DEBUG] Error accediendo a tbar[1]: {e}")
+
             # DEBUG: Listar ventanas abiertas para diagnosticar popup
             self.log(f"  [DEBUG] Ventanas SAP abiertas:")
             try:
                 for i in range(self.session.Children.Count):
                     wnd = self.session.Children(i)
                     self.log(f"    wnd[{i}]: type={wnd.Type}, text='{wnd.Text}', ID='{wnd.Id}'")
-                    # Listar hijos de cada ventana (botones, tablas, etc.)
-                    try:
-                        for j in range(wnd.Children.Count):
-                            child = wnd.Children(j)
-                            self.log(f"      child[{j}]: type={child.Type}, ID='{child.Id}'")
-                    except Exception:
-                        pass
             except Exception as e:
                 self.log(f"  [DEBUG] Error listando ventanas: {e}")
 
