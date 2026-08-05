@@ -1,2 +1,28 @@
 .opencode/node_modules/
 *.log
+
+# Python — script/
+script/.env
+script/.venv/
+script/venv/
+script/__pycache__/
+script/mise.toml
+
+# Python — globales
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+.env
+.agents/
+skills-lock.json

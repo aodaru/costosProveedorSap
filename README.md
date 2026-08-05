@@ -4,6 +4,45 @@
 
 ---
 
+## Estructura del proyecto
+
+```
+costosProveedorSap/
+├── README.md                          # Guia de decision y documentacion principal
+├── changelog.md                       # Historial de revisiones y features
+├── .gitignore
+├── src/
+│   └── zr_mass_actualiza_precio_cond.abap   # Reporte ABAP (feature PRECIO_COND_R3)
+├── research/                          # Documentacion de investigacion SAP
+│   ├── 01_data_model_mm42.md
+│   ├── 02_apis_actualizacion_masiva.md
+│   ├── 03_mejor_practica_ejemplo.md
+│   ├── 04_sap_login_referencia.md
+│   ├── 05_arquitectura_referencia.md
+│   ├── 06_analisis_script_objetivo.md
+│   └── 07_plan_script_python.md
+├── script/                            # Feature PYTHON_ME12_MASSCOND
+│   ├── main.py                        # GUI PySide2 principal
+│   ├── me12_massmod.py                # Logica ME12 GUI Scripting
+│   ├── sap.py                         # Conexion SAP GUI
+│   ├── validators.py                  # Validaciones de Excel
+│   ├── paths.py                       # Utilidades de rutas
+│   ├── ui_me12.py                     # UI generada desde Qt Designer
+│   ├── create_template.py             # Generador de template Excel
+│   ├── test_project.py                # Tests pytest
+│   ├── template_me12.xlsx             # Template Excel de entrada
+│   ├── .env                           # Credenciales (no trackeado)
+│   ├── .env.example                   # Plantilla de credenciales
+│   ├── mise.toml                      # Config Python (mise)
+│   └── scripts/                       # Referencias y docs internas
+│       ├── README_python_script.md
+│       ├── README_gui_scripting.md
+│       └── me12_price_change.vba
+└── docs/
+    └── superpowers/implementation/
+        └── pab-currency.md
+```
+
 ## 1. Qué es realmente ese dato (y dónde vive)
 
 "Cambiar el precio en MM42" — el dato que el usuario ve en la sección **"condiciones de precio neto"** de la pestaña Compras de MM42 (Change Material &, el equivalente retail de MM02) — **no es un campo del material master**: la vista de Compras de MM42 no contiene ningún campo de precio editable, y `MARC-NETPR` **no existe** en el estándar. Ese precio proviene del **registro de información de compras (info record)** y de su **registro de condición**:
