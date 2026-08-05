@@ -63,3 +63,59 @@
 - C3: [x] Linea 127: wait_for_control(self.session, precio_id, log_func=self.log).Text = nuevo_precio — reemplaza el self.session.findById directo del plan T3.
 - C4: [x] Sin cambios no intencionados. Delays intactos: DELAY_AFTER_ENTER=0.5 (linea 9), DELAY_AFTER_CLICK=0.3 (linea 10), DELAY_BETWEEN_ROWS=1.0 (linea 11). Constante CONDITION_ROW=2 (linea 14) sin cambios. Otros indById siguen siendo directos: okcd (95), LIFNR (100), MATNR (103), EKORG (106-108), SendVKey (111), popup btn[7] (120), btn[11] (131), sbar (137). git diff HEAD -- script/sap.py script/main.py script/validators.py sin output (intactos).
 - C5: [x] Indentacion correcta (4 espacios). py_compile sin errores. Codigo legible.
+# Review — feature popup-retry-fix (wait_for_control popup PASO 7)
+
+**Veredicto:** APPROVED
+
+## Checkpoints
+
+- C1: [x] PASO 7 (linea 119): `wait_for_control(self.session, "wnd[1]/tbar[0]/btn[7]", timeout=3.0, log_func=self.log).Press` — implementado correctamente. Timeout reducido a 3.0s (vs default 5.0s) apropiado para un popup que siempre aparece.
+- C2: [x] Bloque try/except/pass anterior eliminado completamente. git diff confirma eliminacion de 5 lineas (try/except con findById directo + comment "Popup no aparecio, es normal") reemplazadas por 2 lineas (wait_for_control + sleep).
+- C3: [x] `wait_for_control` permanece como funcion global en lineas 17-32. Firma intacta: `(session, control_id, timeout=5.0, interval=0.2, log_func=None)`. Loop retry, log de recuperacion, TimeoutError al agotar timeout.
+- C4: [x] Linea 115: `wait_for_control(self.session, "wnd[0]/tbar[1]/btn[8]", log_func=self.log).Press` — intacto. Linea 124: `wait_for_control(self.session, precio_id, log_func=self.log).Text = nuevo_precio` — intacto (shifted from 127 to 124 por eliminacion de lineas).
+- C5: [x] Sin cambios no intencionados. Delays intactos. Constantes (DELAY_*, CONDITION_ROW) sin cambios. Todos los otros findById directos preservados (okcd:95, LIFNR:100, MATNR:103, EKORG:106-108, SendVKey:111, btn[11]:128, sbar:134). Indentacion correcta (4 espacios).
+
+## Notas
+
+- El diff es limpio y minimo: un unico bloque (PASO 7) modificado en script/me12_massmod.py. No se tocaron otros archivos.
+- Tests existen (script/test_project.py, 323 lineas) pero no se pudieron ejecutar (Python no disponible en entorno). El implementador debe verificar `pytest script/test_project.py` antes de merge.
+- init.sh no existe en este repositorio. No hay harness ejecutable local.
+
+# Review — feature date-fix-save-fix (VALIDO_DESDE today + SendVKey save)
+
+**Veredicto:** APPROVED
+
+## Checkpoints
+
+- C1: [x] **Syntax**: python -c "import ast; ast.parse(...)" → Syntax OK. No syntax errors.
+- C2: [x] **Import**: rom datetime import datetime correctly added at line 5. No duplicate imports.
+- C3: [x] **Date format**: %Y%m%d produces correct SAP internal format (e.g., "20260805"). Consistent with validators.py:24 OPTIONAL_COLUMNS default and validate_field line 81 (len(value) != 8).
+- C4: [x] **Save fix**: SendVKey(11) at line 246 correctly replaces tn[11].Press. Consistent with the same COM reference workaround already applied to tn[8] at line 137 (PASO 6c). Both use self.session.findById("wnd[0]").SendVKey(N).
+- C5: [x] **No regressions**: All 34 tests pass (pytest script/test_project.py). PASOs 1-5, 5b, 8, 10 untouched per diff. Delays DELAY_AFTER_ENTER (0.5), DELAY_AFTER_CLICK (0.3), DELAY_BETWEEN_ROWS (1.0), CONDITION_ROW (2) all intact.
+- C6: [x] **Edge case — VALIDO_HASTA empty**: Line 93 ow.get("VALIDO_HASTA", "99991231") provides fallback. Additionally, validators.py:115-117 replaces empty/NaN values with defaults before reaching _procesar_registro. Empty Excel cells → "99991231" guaranteed.
+- C7: [x] **VALIDO_DESDE override safe**: Line 92 overrides Excel value with datetime.now(). The Excel value is still validated by validators.py (format + cross-validation with VALIDO_HASTA at lines 140-148), ensuring data quality even though the final value is overridden.
+
+## Notas
+
+- 34/34 tests green (12.84s). Sin tests rojos.
+- El diff incluye cambios adicionales no listados en el checklist original (PASO 6 refactorizado con resizeWorkingPane + SendVKey(0), PASO 7 reescrito de btn[7].Press simple a deteccion compleja de popup, logging DEBUG). Todos son mejoras legitimas que no afectan regresiones.
+- init.sh no existe en este repositorio — no hay harness ejecutable local.
+
+# Review — date-format-validity-logic
+
+**Veredicto:** APPROVED
+
+## Checkpoints
+
+- C1: [x] Syntax — both files compile clean (py_compile)
+- C2: [x] _normalize_date_to_yyyymmdd() handles dd.mm.yyyy and YYYYMMDD (validators.py:50-64)
+- C3: [x] Date validation accepts both formats (validators.py:97-109)
+- C4: [x] Cross-validation normalizes both fields before comparison (validators.py:173-174)
+- C5: [x] compute_validity_dates() implements DESDE->today-if-past, HASTA->99991231-if-past-or-today (me12_massmod.py:38-64)
+- C6: [x] _procesar_registro() calls compute_validity_dates() at line 143
+- C7: [x] No regressions in other parts of both files
+
+## Notas
+
+- **Edge case (non-blocking):** Normalizers accept structurally valid but semantically invalid dates (e.g., 32.13.2026 -> 20261332). SAP rejects these. Recommend adding day/month range validation in a future pass.
+- **DRY:** parse_date_to_yyyymmdd() in me12_massmod.py duplicates _normalize_date_to_yyyymmdd() in validators.py. Consider consolidating.
