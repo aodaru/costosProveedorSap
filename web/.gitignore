@@ -1,0 +1,8 @@
+# Variables de entorno locales de la capa web
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/

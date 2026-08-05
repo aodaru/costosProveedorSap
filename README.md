@@ -188,3 +188,16 @@ Mecanismos que **NO** sirven para el precio: `BAPI_MATERIAL_SAVEDATA` (vista com
 > ```
 >
 > Notas: `cond_validity`, `condition` y `return` van en **TABLES** (no EXPORTING/IMPORTING); el nº de info record en MEWIEINA/MEWIEINE es **INFO_REC** (no "infnr"); MEWIVALIDITY usa **VALID_FROM/VALID_TO** (no DATAB/DATBI) y requiere **SERIAL_ID**; MEWICONDITION necesita **SERIAL_ID + INFO_REC + COND_COUNT** (sin ellos el FM falla con "Please maintain either the net price or conditions"). Ajustar nombres de campos si difieren.
+
+---
+
+## 7. Web UI ME12
+
+Existe una interfaz web que permite al equipo de compras ejecutar la carga masiva ME12 desde un navegador, sin acceder a la VM Windows:
+
+- **URL:** `http://vm-windows:5000`
+- **Stack:** Flask + Flask-SocketIO + HTML/CSS/JS embebido (código en `web/`).
+- **Deploy:** servicio Windows auto-arrancable gestionado con **nssm**.
+- **Documentación de operaciones:** `web/RUNBOOK.md` (instalación, start/stop, logs, actualización y verificación).
+- **Checklist de aceptación:** `web/UAT_CHECKLIST.md` es el checklist de aceptación de usuario (UAT) que debe completar el equipo de compras antes de dar por cerrada la Fase 6.
+- **Notas:** las credenciales SAP siguen en `script/.env` (no trackeado) y el secreto de Flask se configura como variable de entorno `FLASK_SECRET_KEY` en el servicio nssm; no se commitean.
