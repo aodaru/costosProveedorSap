@@ -133,7 +133,7 @@ def upload():
     return jsonify({"ok": True, "path": temp_path, "rows": len(data)})
 
 
-def _run_sap_process(file_path):
+def _run_sap_process(file_path, username, password):
     """Ejecuta el ciclo SAP (login → ME12 → cierre) en un thread de fondo.
 
     Importa `SapGui` y `pywintypes` de forma perezosa para evitar que
@@ -202,6 +202,15 @@ def _run_sap_process(file_path):
     sap = None
     try:
         from sap import SapGui
+        import sap as sap_module
+
+        # Override module-level globals so sapLogin() uses the credentials
+        # provided by the user via the web form.
+        sap_module.mandt = os.environ.get("SAP_MANDANT", "")
+        sap_module.username = username
+        sap_module.password = password
+        sap_module.language = os.environ.get("SAP_LANG", "")
+        sap_module.system_sap = os.environ.get("SAP_SYSTEM", "")
 
         sap = SapGui()
         socketio.emit("status", {"status": "processing"})
@@ -262,6 +271,8 @@ def execute():
 
     Solo permite una ejecución a la vez. Si ya hay una corrida en proceso
     retorna 409 Conflict.
+
+    Espera un JSON body con ``username`` y ``password`` (strings).
     """
     global SERVER_STATUS
 
@@ -275,9 +286,22 @@ def execute():
             {"ok": False, "message": "No se ha cargado un archivo válido."}
         ), 400
 
+    body = request.get_json(silent=True) or {}
+    username = (body.get("username") or "").strip()
+    password = body.get("password") or ""
+
+    if not username:
+        return jsonify(
+            {"ok": False, "message": "El usuario SAP es obligatorio."}
+        ), 400
+    if not password:
+        return jsonify(
+            {"ok": False, "message": "La contraseña SAP es obligatoria."}
+        ), 400
+
     SERVER_STATUS = "processing"
     socketio.emit("status", {"status": "processing"})
-    socketio.start_background_task(_run_sap_process, CURRENT_UPLOAD_PATH)
+    socketio.start_background_task(_run_sap_process, CURRENT_UPLOAD_PATH, username, password)
 
     return jsonify({"ok": True, "message": "Ejecución iniciada"}), 202
 

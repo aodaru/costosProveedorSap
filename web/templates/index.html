@@ -34,6 +34,31 @@
             margin: 20px 0;
             flex-wrap: wrap;
         }
+        .credentials-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .credentials-row label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #555;
+        }
+        .credentials-row input[type="text"],
+        .credentials-row input[type="password"] {
+            padding: 8px 12px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 200px;
+        }
+        .credentials-row input:focus {
+            outline: none;
+            border-color: #0073e6;
+            box-shadow: 0 0 0 2px rgba(0, 115, 230, 0.15);
+        }
         input[type="file"] {
             font-size: 14px;
         }
@@ -126,6 +151,13 @@
 
         <div class="row">
             <span id="status-badge" class="badge"><span class="dot"></span> Listo</span>
+        </div>
+
+        <div class="credentials-row">
+            <label for="sap-user">Usuario SAP:</label>
+            <input type="text" id="sap-user" placeholder="Ej: MIUSUARIO" autocomplete="off">
+            <label for="sap-pass">Contraseña:</label>
+            <input type="password" id="sap-pass" placeholder="Contraseña SAP" autocomplete="off">
         </div>
 
         <div class="row">
@@ -283,10 +315,27 @@
                 if (btnRun.disabled) {
                     return;
                 }
+
+                const sapUser = document.getElementById('sap-user').value.trim();
+                const sapPass = document.getElementById('sap-pass').value;
+
+                if (!sapUser) {
+                    appendLog('Error: ingrese el usuario SAP.');
+                    return;
+                }
+                if (!sapPass) {
+                    appendLog('Error: ingrese la contraseña SAP.');
+                    return;
+                }
+
                 btnRun.disabled = true;
                 appendLog('Iniciando ejecución ME12...');
 
-                fetch('/execute', { method: 'POST' })
+                fetch('/execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: sapUser, password: sapPass })
+                })
                     .then(function (response) { return response.json(); })
                     .then(function (data) {
                         if (!data || !data.ok) {
