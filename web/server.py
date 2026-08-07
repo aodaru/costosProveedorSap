@@ -9,8 +9,12 @@ import os
 import sys
 import tempfile
 
+from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request, send_from_directory
 from flask_socketio import SocketIO
+
+# Cargar variables de entorno desde .env (si existe)
+load_dotenv()
 
 # Agregar `script/` al path para poder importar `SapGui` y `validators` de forma
 # perezosa en las fases 2-3 sin modificar el árbol de `script/`.
