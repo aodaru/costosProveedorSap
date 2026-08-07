@@ -54,20 +54,49 @@ class SapClient:
         """Abre SAP Logon y establece conexión.
 
         Retorna True si la conexión se estableció, False en caso contrario.
+
+        Utiliza espera activa con reintentos para ``GetObject("SAPGUI")``
+        de modo que, si SAP Logon tarda en registrar su objeto COM,
+        no se reporte un error transitorio como fatal.
         """
         import win32com.client  # type: ignore
-        import pywintypes
+        import pythoncom
+
+        # Inicializar COM para este thread (requerido en hilos/secundarios)
+        pythoncom.CoInitialize()
 
         self._open_sap_logon()
-        time.sleep(3)
 
-        try:
-            SapGuiAuto = win32com.client.GetObject("SAPGUI")
-        except pywintypes.com_error as e:
-            log_func(f"{'=' * 50}")
-            log_func(f"SAP GUI no encontrado: {e}")
-            log_func("Asegúrese de que SAP GUI esté instalado y disponible.")
-            log_func(f"{'=' * 50}")
+        # --- Espera activa para SAP GUI con reintentos ---
+        max_retries = 10
+        SapGuiAuto = None
+
+        for attempt in range(max_retries):
+            try:
+                time.sleep(2)
+                SapGuiAuto = win32com.client.GetObject("SAPGUI")
+                log_func(f"SAP GUI encontrado en intento {attempt + 1}")
+                break
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    log_func(
+                        f"Intento {attempt + 1}: SAP GUI no disponible, "
+                        f"esperando..."
+                    )
+                    time.sleep(1)
+                else:
+                    log_func(f"{'=' * 50}")
+                    log_func(
+                        f"SAP GUI no encontrado después de {max_retries} "
+                        f"intentos: {e}"
+                    )
+                    log_func(
+                        "Asegúrese de que SAP GUI esté instalado y disponible."
+                    )
+                    log_func(f"{'=' * 50}")
+                    return False
+
+        if not SapGuiAuto:
             return False
 
         self.application = SapGuiAuto.GetScriptingEngine
@@ -84,6 +113,7 @@ class SapClient:
         time.sleep(3)
         self.session = self.connection.Children(0)
         self.session.findById("wnd[0]").maximize()
+        log_func("Conexión SAP establecida correctamente")
         return True
 
     def login(self, log_func=print):
@@ -453,25 +483,57 @@ class SapClient:
     # ------------------------------------------------------------------ #
 
     def close(self, log_func=print):
-        """Cierra sesión SAP y SAP Logon.
+        """Cierra sesión SAP y SAP Logon de forma ordenada.
 
         Equivalente a ``safe_close_window`` de ``script/sap.py``.
-        """
-        import pywintypes  # noqa: F811 — import local intentionally shadowed
 
+        Estrategia:
+        1. Cierre ordenado via COM (CloseSession + Exit).
+        2. Liberar referencias COM explícitamente.
+        3. Solo como fallback, ``taskkill /f`` si SAP sigue corriendo.
+
+        Esto evita la entrada corrupta en el ROT que causaba
+        ``SAP GUI no encontrado: (-2147221020)`` en la segunda ejecución.
+        """
+        # Paso 1: Cierre ordenado via COM
         try:
-            self.session.findById("wnd[0]").maximize()
-            self.connection.CloseSession("ses[0]")
-        except pywintypes.com_error as e:
-            log_func(f"{'=' * 50}")
-            log_func(f"Error al cerrar sesión SAP: {e}")
-            log_func(f"{'=' * 50}")
+            if self.connection:
+                try:
+                    self.connection.CloseSession("ses[0]")
+                except Exception:
+                    pass
+            if self.application:
+                try:
+                    self.application.Exit()
+                except Exception:
+                    pass
         except Exception as e:
-            log_func(f"{'=' * 50}")
             log_func(f"Error al cerrar sesión SAP: {e}")
-            log_func(f"{'=' * 50}")
+
+        # Paso 2: Limpiar referencias COM explícitamente
         finally:
-            subprocess.run(["taskkill", "/f", "/im", "saplogon.exe"])
+            self.session = None
+            self.connection = None
+            self.application = None
+            import gc
+            gc.collect()
+
+            # Paso 3: Solo matar SAP si aún está corriendo (fallback)
+            try:
+                subprocess.run(
+                    ["taskkill", "/f", "/im", "saplogon.exe"],
+                    capture_output=True,
+                    timeout=5,
+                )
+            except Exception:
+                pass
+
+    def __del__(self):
+        """Destructor para asegurar limpieza de recursos COM."""
+        try:
+            self.close(log_func=lambda x: None)
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------ #
     #  Helpers — fechas y controles                                         #

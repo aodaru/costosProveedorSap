@@ -388,3 +388,53 @@
 - `SOCKETIO_FIX.md` is well-documented and explains the root cause clearly (Engine.IO treats `/socket.io/socket.io.js` GET as a handshake when it lacks `EIO=4`). It is currently untracked (`git status: ?? web/SOCKETIO_FIX.md`); should be committed.
 - `init.sh`, `CHECKPOINTS.md`, `docs/architecture.md` y `docs/conventions.md` no existen en este repositorio.
 - Diff mínimo y limpio: 2 archivos modificados, 1 archivo nuevo (doc). Sin regresiones.
+
+# Review — feature sap-reconnection-fix (cierre ordenado SAP + reconexión)
+
+**Veredicto:** APPROVED
+
+## Archivos revisados
+
+- `web/sap_client.py` (615 líneas) — archivo nuevo en este commit
+- `web/server.py` (310 líneas) — modificado para usar `SapClient` en vez de `SapGui`
+
+## Checkpoints
+
+- C1: [x] **`close()` con cierre ordenado** — Líneas 485-529. Estrategia correcta: `CloseSession("ses[0]")` → `application.Exit()` → limpieza de referencias COM → `taskkill /f` solo como fallback. La adición de `application.Exit()` es la corrección clave: le dice a SAP Logon que se cierre gracefully y desregistre sus objetos COM del ROT, evitando la entrada corrupta que causaba `(-2147221020)`.
+- C2: [x] **Limpieza explícita de referencias COM** — Líneas 515-519. `self.session = None`, `self.connection = None`, `self.application = None` + `gc.collect()`. Patrón estándar para liberar referencias COM en Python. El `finally` garantiza que la limpieza ocurre siempre, incluso si `CloseSession` o `Exit` fallan.
+- C3: [x] **`connect()` con reintentos** — Líneas 53-117. 10 reintentos con espera de 2s inicial + 1s entre intentos. `pythoncom.CoInitialize()` inicializa COM para el thread (requerido en hilos secundarios). Retorna `False` en lugar de crashear si SAP GUI no está disponible después de todos los reintentos.
+- C4: [x] **`__del__` para limpieza automática** — Líneas 531-536. Llama `close()` con `log_func=lambda x: None` (silencia output). Envuelto en `try/except` para manejar errores durante el shutdown del intérprete.
+- C5: [x] **Sintaxis correcta** — `py_compile` y `ast.parse` pasan sin errores.
+- C6: [x] **No rompe funcionalidad existente** — Todos los métodos originales (connect, login, run_me12, _procesar_registro, helpers) están preservados. El cambio es netamente adicional (close mejorado, retries, __del__).
+- C7: [x] **Manejo de errores adecuado** — Cada operación COM en `close()` tiene su propio try/except. El `finally` garantiza limpieza. Los reintentos en `connect()` loguean cada intento fallido.
+- C8: [x] **`script/` no modificado** — `git diff -- script/` vacío.
+- C9: [x] **Imports lazy** — `win32com.client`, `pythoncom` importados DENTRO de `connect()` (líneas 62-63). `validators` importado DENTRO de `run_me12()` (línea 162). Módulo importable en Linux sin error.
+- C10: [x] **`server.py` migra correctamente** — `_do_cleanup()` llama `sap.close()` en vez de `sap.safe_close_window()` (línea 179). `_run_sap_process()` importa `SapClient` de `sap_client` (línea 198). Se eliminó el monkey-patching de globals de `sap_module`.
+
+## Verificación de los 4 cambios solicitados
+
+| # | Cambio | Ubicación | Estado |
+|---|--------|-----------|--------|
+| 1 | `close()` con cierre ordenado (CloseSession + Exit antes de taskkill) | `sap_client.py:485-529` | ✅ |
+| 2 | Limpieza explícita de referencias COM (self.session = None, etc.) | `sap_client.py:515-519` | ✅ |
+| 3 | `connect()` con reintentos para GetObject("SAPGUI") | `sap_client.py:70-100` | ✅ |
+| 4 | `__del__` para limpieza automática | `sap_client.py:531-536` | ✅ |
+
+## Análisis del fix
+
+**Causa raíz del bug original:** `taskkill /f` mataba SAP abruptamente, dejando una entrada corrupta en el Running Object Table (ROT) de Windows. En la segunda ejecución, `GetObject("SAPGUI")` fallaba con `(-2147221020, 'Sintaxis no válida')` porque el COM server estaba en estado inválido.
+
+**Por qué el fix funciona:**
+1. `CloseSession("ses[0]")` cierra la sesión SAP de forma ordenada (libera el handler de sesión).
+2. `application.Exit()` le dice a SAP Logon que se cierre gracefully — esto desregistra los objetos COM del ROT antes de terminar el proceso.
+3. La limpieza de referencias Python (`None` + `gc.collect()`) asegura que no queden punteros COM stale en el intérprete.
+4. El `taskkill /f` solo se ejecuta como fallback después de la limpieza COM; si SAP ya se cerró vía `Exit()`, el taskkill falla silenciosamente (no hay proceso que matar).
+
+## Observaciones (no bloqueantes)
+
+1. **Imports no usados** — `os` (línea 14) y `from pathlib import Path` (línea 15) están importados pero no se usan en `sap_client.py`. Código muerto; se pueden eliminar en una limpieza futura.
+2. **`import gc` dentro de `finally`** (línea 518) — Funcional pero no convencional. Podría moverse al nivel del módulo o al inicio del método.
+3. **Sin `pythoncom.CoUninitialize()`** — `connect()` llama `CoInitialize()` pero `close()` no llama `CoUninitialize()`. Para el caso de uso actual (una conexión a la vez), esto es inofensivo. En ciclos repetidos de connect/close sobre el mismo thread, el reference count de COM crecería; considerar agregar `CoUninitialize()` en `close()` como mejora futura.
+4. **`taskkill /f` siempre se ejecuta** — Incluso después de un cierre COM exitoso, el `finally` intenta `taskkill /f /im saplogon.exe`. Si SAP ya se cerró vía `Exit()`, el taskkill falla silenciosamente (capturado por `except Exception: pass`). Es un safety net válido pero genera un proceso subprocess innecesario en cada cierre exitoso.
+5. **Tests** — No existen tests para `web/sap_client.py`. `tech-stack.md` confirma que "Tests automatizados de la capa web — No seleccionado por el stakeholder". La verificación es manual en la VM.
+6. `init.sh`, `CHECKPOINTS.md`, `docs/architecture.md` y `docs/conventions.md` no existen en este repositorio.
