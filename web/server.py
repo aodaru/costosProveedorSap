@@ -1,9 +1,9 @@
 """Servidor web del Web UI de ME12 (Fase 4).
 
 Nota: este archivo se desarrolla en Linux pero se ejecuta en la VM Windows con
-SAP GUI instalado.  `script/sap.py` importa `win32com` a nivel de módulo, por lo
-que cualquier import de `SapGui` o `validators` se hará de forma perezosa *dentro*
-de las funciones de las fases posteriores.
+SAP GUI instalado.  La lógica SAP completa vive en `sap_client.py` (módulo
+autocontenido).  `validators` de `script/` se importa de forma perezosa solo
+para validación de Excel en la fase de upload.
 """
 import os
 import sys
@@ -16,8 +16,7 @@ from flask_socketio import SocketIO
 # Cargar variables de entorno desde .env (si existe)
 load_dotenv()
 
-# Agregar `script/` al path para poder importar `SapGui` y `validators` de forma
-# perezosa en las fases 2-3 sin modificar el árbol de `script/`.
+# Agregar `script/` al path SOLO para validators (import perezoso en upload).
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPT_DIR = os.path.join(PROJECT_ROOT, "script")
 if SCRIPT_DIR not in sys.path:
@@ -136,7 +135,7 @@ def upload():
 def _run_sap_process(file_path, username, password):
     """Ejecuta el ciclo SAP (login → ME12 → cierre) en un thread de fondo.
 
-    Importa `SapGui` y `pywintypes` de forma perezosa para evitar que
+    Importa `SapClient` de `sap_client.py` de forma perezosa para evitar que
     `win32com` se cargue durante el import de este módulo en Linux.
 
     Robustez (Fase 4):
@@ -146,11 +145,6 @@ def _run_sap_process(file_path, username, password):
     - El bloque ``finally`` limpia siempre, incluso si el cierre de SAP falla.
     """
     global SERVER_STATUS, CURRENT_UPLOAD_PATH
-
-    try:
-        import pywintypes
-    except Exception:
-        pywintypes = None
 
     SAPLOGON_PATH = r"C:\Program Files (x86)\SAP\FrontEnd\SAPgui\saplogon.exe"
 
@@ -182,7 +176,7 @@ def _run_sap_process(file_path, username, password):
             pass
 
         try:
-            sap_instance.safe_close_window(log_func=_emit_log)
+            sap_instance.close(log_func=_emit_log)
         except AttributeError:
             # sap_instance es None (no se llegó a crear el objeto SAP GUI).
             pass
@@ -201,18 +195,8 @@ def _run_sap_process(file_path, username, password):
 
     sap = None
     try:
-        from sap import SapGui
-        import sap as sap_module
+        from sap_client import SapClient
 
-        # Override module-level globals so sapLogin() uses the credentials
-        # provided by the user via the web form.
-        sap_module.mandt = os.environ.get("SAP_MANDANT", "")
-        sap_module.username = username
-        sap_module.password = password
-        sap_module.language = os.environ.get("SAP_LANG", "")
-        sap_module.system_sap = os.environ.get("SAP_SYSTEM", "")
-
-        sap = SapGui()
         socketio.emit("status", {"status": "processing"})
         _emit_log("Iniciando conexión con SAP...")
 
@@ -222,18 +206,34 @@ def _run_sap_process(file_path, username, password):
                 "en la ruta esperada."
             )
 
-        sap.sapLogin(log_func=_emit_log)
+        sap = SapClient(
+            system=os.environ.get("SAP_SYSTEM", ""),
+            mandt=os.environ.get("SAP_MANDANT", ""),
+            username=username,
+            password=password,
+            language=os.environ.get("SAP_LANG", ""),
+        )
 
-        if not hasattr(sap, "session") or sap.session is None:
+        if not sap.connect(log_func=_emit_log):
+            raise RuntimeError(
+                "No se pudo conectar a SAP. "
+                "Revise la red y que SAP GUI esté disponible."
+            )
+
+        if not sap.login(log_func=_emit_log):
             raise RuntimeError(
                 "No se pudo iniciar sesión en SAP. "
-                "Revise credenciales, sistema y conectividad."
+                "Revise credenciales, mandt y idioma."
             )
 
         _emit_log("Sesión SAP iniciada. Ejecutando ME12...")
         try:
-            sap.massive_change(file_path, log_func=_emit_log)
+            sap.run_me12(file_path, log_func=_emit_log)
         except Exception as me_exc:
+            try:
+                import pywintypes
+            except ImportError:
+                pywintypes = None
             com_error = getattr(pywintypes, "com_error", None) if pywintypes else None
             if com_error and isinstance(me_exc, com_error):
                 _emit_log(f"SAP se desconectó durante la ejecución: {me_exc}")
