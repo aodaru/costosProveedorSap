@@ -34,7 +34,7 @@ if not FLASK_SECRET_KEY:
 app.config["SECRET_KEY"] = FLASK_SECRET_KEY
 
 # Inicialización de SocketIO para logs en tiempo real en fases posteriores.
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 # Estado global del servidor: ready / processing / error.
 # Fase 2 solo gestiona "ready" y "error" (upload); "processing" se usará en Fase 3.
@@ -155,19 +155,18 @@ def _run_sap_process(file_path):
     SAPLOGON_PATH = r"C:\Program Files (x86)\SAP\FrontEnd\SAPgui\saplogon.exe"
 
     def _emit_log(message):
-        socketio.emit("log", {"message": message}, broadcast=True)
+        socketio.emit("log", {"message": message})
 
     def _emit_complete(ok, summary):
         socketio.emit(
             "complete",
             {"ok": ok, "summary": summary},
-            broadcast=True,
         )
 
     def _reset_state(target_status="ready"):
         global SERVER_STATUS
         SERVER_STATUS = target_status
-        socketio.emit("status", {"status": target_status}, broadcast=True)
+        socketio.emit("status", {"status": target_status})
 
     def _do_cleanup(sap_instance):
         """Borra temporales y cierra SAP de forma segura, sin fallar nunca.
@@ -205,7 +204,7 @@ def _run_sap_process(file_path):
         from sap import SapGui
 
         sap = SapGui()
-        socketio.emit("status", {"status": "processing"}, broadcast=True)
+        socketio.emit("status", {"status": "processing"})
         _emit_log("Iniciando conexión con SAP...")
 
         if not os.path.isfile(SAPLOGON_PATH):
@@ -277,7 +276,7 @@ def execute():
         ), 400
 
     SERVER_STATUS = "processing"
-    socketio.emit("status", {"status": "processing"}, broadcast=True)
+    socketio.emit("status", {"status": "processing"})
     socketio.start_background_task(_run_sap_process, CURRENT_UPLOAD_PATH)
 
     return jsonify({"ok": True, "message": "Ejecución iniciada"}), 202

@@ -365,3 +365,26 @@
 
 - La UAT real requiere intervención humana del equipo de compras en la VM Windows con SAP; no se ejecuta en este entorno Linux. Se verificó únicamente la existencia, completitud y corrección del documento `web/UAT_CHECKLIST.md`.
 - `init.sh`, `CHECKPOINTS.md`, `docs/architecture.md` y `docs/conventions.md` no existen en este repositorio; se evaluaron los criterios explícitos de Fase 6 contra `specs/roadmap.md` y `AGENTS.md`.
+
+# Review — feature socketio-client-fix (Socket.IO protocol mismatch)
+
+**Veredicto:** APPROVED
+
+## Checkpoints
+
+- C1: [x] **Protocol mismatch fix**: `<script src="/socket.io/socket.io.js">` was treated as an Engine.IO handshake (missing `EIO=4` query param) causing HTTP 400. Replaced with CDN-loaded client `web/templates/index.html:146-148`. Eliminates the invalid GET request entirely.
+- C2: [x] **Client-server protocol compatibility**: Socket.IO JS client 4.8.1 (protocol 5/4) ↔ python-socketio 5.16.3 (protocol 5) ↔ python-engineio 4.13.4 (protocol 4). Versions confirmed via `pip show`.
+- C3: [x] **script/ untouched**: `git diff -- script/` vacío. Only `web/server.py` and `web/templates/index.html` modified. `web/SOCKETIO_FIX.md` created (untracked, should be committed).
+- C4: [x] **Server emits without `broadcast=True`**: All 5 `socketio.emit()` calls had `broadcast=True` removed — `_emit_log` (`web/server.py:158`), `_emit_complete` (`web/server.py:161-163`), `_reset_state` (`web/server.py:169`), processing emit in `_run_sap_process` (`web/server.py:207`), and processing emit in `execute()` (`web/server.py:279`). Correct: `socketio.emit()` outside a request context broadcasts to all clients by default in python-socketio 5.x.
+- C5: [x] **SRI integrity hash verified**: `integrity="sha384-mkQ3/7FUtcGyoppY6bz/PORYoGqOl7/aSUMn2ymDOJcapfS6PHqxhRTMh1RR0Q6+"` matches the actual file at `https://cdn.socket.io/4.8.1/socket.io.min.js` (verified via `openssl dgst -sha384`). `crossorigin="anonymous"` present.
+- C6: [x] **Explicit `async_mode="threading"`**: Added to `SocketIO()` constructor (`web/server.py:37`). Correct for the single-execution deployment model (no eventlet/gevent required).
+- C7: [x] **Badge defense-in-depth preserved**: `executionFinished`/`lastOk` flags (`web/templates/index.html:157-161`) still prevent badge from reverting to green after error. All previous Fase 4 fixes intact.
+- C8: [x] **Mission/tech-stack compliance**: Stack remains Flask + Flask-SocketIO + HTML/CSS/JS. No new frameworks, no Docker, no REST API added. `script/` never touched.
+- C9: [x] **No credentials hardcoded**: `FLASK_SECRET_KEY` read from `.env` via `load_dotenv()` (`web/server.py:16-17`). No SAP credentials in code.
+- C10: [x] **`FLASK_SECRET_KEY` required**: `RuntimeError` raised if not set (`web/server.py:28-33`). No fallback.
+
+## Notas
+
+- `SOCKETIO_FIX.md` is well-documented and explains the root cause clearly (Engine.IO treats `/socket.io/socket.io.js` GET as a handshake when it lacks `EIO=4`). It is currently untracked (`git status: ?? web/SOCKETIO_FIX.md`); should be committed.
+- `init.sh`, `CHECKPOINTS.md`, `docs/architecture.md` y `docs/conventions.md` no existen en este repositorio.
+- Diff mínimo y limpio: 2 archivos modificados, 1 archivo nuevo (doc). Sin regresiones.
