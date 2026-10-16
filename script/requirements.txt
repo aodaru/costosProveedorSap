@@ -1,0 +1,41 @@
+# Dependencias del proyecto ME12 MassMod (SAP GUI Scripting)
+#
+# Instalacion:
+#   python -m venv .venv
+#   .venv\Scripts\python.exe -m pip install -r requirements.txt
+#
+# Python objetivo: 3.8.x
+# Versiones fijadas (instalacion verificada el 2026-10-16) para que sea reproducible.
+# Si subes Python, revisa PySide2/pandas antes de desfijar.
+
+# --- GUI ---
+PySide2==5.15.2.1
+shiboken2==5.15.2.1
+
+# --- Datos / Excel ---
+pandas==2.0.3
+numpy==1.24.4
+openpyxl==3.1.5
+
+# --- Config (.env) ---
+python-dotenv==1.0.1
+
+# --- Automatizacion SAP GUI (COM / win32) ---
+pywin32==311
+
+# --- Tests ---
+pytest==8.3.5
+
+# --- Dependencias transitivas (fijadas para evitar sorpresas) ---
+colorama==0.4.6
+et_xmlfile==2.0.0
+exceptiongroup==1.3.1
+iniconfig==2.1.0
+packaging==26.2
+pluggy==1.5.0
+python-dateutil==2.9.0.post0
+pytz==2026.5
+six==1.17.0
+tomli==2.5.0
+typing_extensions==4.13.2
+tzdata==2026.5
