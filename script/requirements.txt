@@ -26,6 +26,9 @@ pywin32==311
 # --- Tests ---
 pytest==8.3.5
 
+# --- Build (generar .exe) ---
+pyinstaller==6.11.1
+
 # --- Dependencias transitivas (fijadas para evitar sorpresas) ---
 colorama==0.4.6
 et_xmlfile==2.0.0

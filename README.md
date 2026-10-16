@@ -29,11 +29,17 @@ costosProveedorSap/
 │   ├── paths.py                       # Utilidades de rutas
 │   ├── ui_me12.py                     # UI generada desde Qt Designer
 │   ├── create_template.py             # Generador de template Excel
-│   ├── test_project.py                # Tests pytest
+│   ├── test_project.py                # Tests pytest (34 tests)
 │   ├── template_me12.xlsx             # Template Excel de entrada
+│   ├── icon.ico                       # Icono de la app
+│   ├── build_exe.py                   # Script de build (PyInstaller)
+│   ├── me12_massmod.spec              # Spec PyInstaller
+│   ├── requirements.txt               # Dependencias Python
 │   ├── .env                           # Credenciales (no trackeado)
 │   ├── .env.example                   # Plantilla de credenciales
 │   ├── mise.toml                      # Config Python (mise)
+│   ├── dist/                          # Ejecutable generado (no trackeado)
+│   ├── build/                         # Temp PyInstaller (no trackeado)
 │   └── scripts/                       # Referencias y docs internas
 │       ├── README_python_script.md
 │       ├── README_gui_scripting.md
@@ -153,7 +159,33 @@ Mecanismos que **NO** sirven para el precio: `BAPI_MATERIAL_SAVEDATA` (vista com
 
 ---
 
-## 6. Reporte ABAP entregado
+## 6. Build del ejecutable (Python)
+
+### Descarga rápida
+El ejecutable ya está compilado y disponible como release en GitHub:
+**[github.com/aodaru/costosProveedorSap/releases](https://github.com/aodaru/costosProveedorSap/releases)** → descargar `ME12_MassMod.exe`
+
+### Requisitos en la máquina destino
+- SAP GUI for Windows instalado
+- Archivo `.env` junto al `.exe` con credenciales (copiar `.env.example` y rellenar)
+- `template_me12.xlsx` se extrae automáticamente junto al ejecutable
+
+### Build desde código fuente
+```bash
+cd script
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python build_exe.py
+```
+
+**Salida:** `script/dist/ME12_MassMod.exe` (~66 MB, incluye Python + PySide2 + pandas).
+
+**Desarrollo/QA:** ejecutar `python main.py` directamente (sin build).
+
+---
+
+## 7. Reporte ABAP entregado
 
 `src/zr_mass_actualiza_precio_cond.abap` — reporte ABAP 7.40+ (listo para adaptar) que actualiza la condición PB00/PB01 de info records existentes vía **ME_INFORECORD_MAINTAIN** (grupo MEWIPIR; tablas **MEWICONDITION_TT** / **MEWIVALIDITY_TT** con COND_TYPE='PB00', COND_VALUE, CURRENCY, COND_P_UNT, COND_UNIT, CHANGE_ID='U', y validez VALID_FROM/VALID_TO con SERIAL_ID):
 

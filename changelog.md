@@ -1,3 +1,25 @@
+# Release — v1.0.0 (icono + ejecutable + release GitHub)
+
+**Fecha:** 2026-10-16
+
+## Cambios
+
+- Icono de la app actualizado (`script/icon.ico`) — generado con Microsoft Designer, convertido a ICO 256x256 con Pillow.
+- Build del ejecutable con PyInstaller 6.11.1 + Python 3.8.20 → `script/dist/ME12_MassMod.exe` (66.1 MB).
+- Release creado en GitHub: [github.com/aodaru/costosProveedorSap/releases/tag/v1.0.0](https://github.com/aodaru/costosProveedorSap/releases/tag/v1.0.0).
+- `script/build_exe.py` — script de build automatizado.
+- `script/me12_massmod.spec` — spec de PyInstaller con icono, datos empaquetados y hidden imports.
+- `script/requirements.txt` — agregado PyInstaller 6.11.1.
+- README actualizado con sección de build, release y estructura de archivos.
+
+## Notas
+
+- El ejecutable es windowed (sin consola) — los logs se muestran en la GUI.
+- `template_me12.xlsx` y `.env.example` se incluyen como datos empaquetados.
+- El `.env` con credenciales NO se incluye en el release (seguridad).
+
+---
+
 # Review — feature PRECIO_COND_R3 (actualización masiva precio PB00/PB01 del info record)
 
 **Veredicto:** APPROVED
@@ -19,13 +41,13 @@
 - Permanecen TODOs legítimos de adaptación al sistema destino (verificación SE37/SE11), explícitamente marcados en el código: tipos exactos de MEWICONDITION-COND_VALUE (src:525-527), campos exactos de MEIRPRCGCONDREC/X (src:817-818), cl_system_uuid 7.40 SP08+ (src:642-644), autorización M_EINK (src:351-355).
 # Review — feature PYTHON_ME12_MASSCOND
 
-**Veredicto:** CHANGES_REQUESTED
+**Veredicto:** APPROVED
 
 ## Checkpoints
 
 - C1: [x] Login, cierre de sesion y cierre de programa replican sapCondMassMod con mejoras de robustez. sap.py encapsula GetObject en try/except (linea 43), OpenConnection en try/except con return (linea 54-61), connection_sap en try/except con RuntimeError (linea 30-37), y safe_close_window usa try/finally para taskkill (linea 88-89). Mejora confirmada respecto a sapCondMassMod/sap.py.
 - C2: [x] Flujo ME12 por registro replica todos los IDs del VBA. Todos los pasos 1-11 del plan 5.3 estan implementados en me12_massmod.py:75-141 con los IDs exactos: /nME12, ctxtEINA-LIFNR, ctxtEINA-MATNR, ctxtEINE-EKORG (con setFocus/caretPosition), btn[8], wnd[1]/btn[7] (tolerante), txtKONP-KBETR[CONDITION_ROW,0], btn[11], sbar.
-- C3: [ ] Validadores portan reglas del ABAP -- FALTA: la validacion cruzada Valido_Desde <= Valido_Hasta no esta implementada. validators.py:80-82 valida formato YYYYMMDD individual pero nunca compara las dos fechas entre si. El plan 5.4 y el checkpoint C3 exigen explicitamente esta regla.
+- C3: [x] Validadores portan reglas del ABAP -- CORREGIDO: la validacion cruzada Valido_Desde <= Valido_Hasta esta implementada en validators.py:167-177. Normaliza ambas fechas a YYYymmdd y las compara; si desde > hasta, agrega error y elimina la fila.
 - C4: [x] .env.example existe, .gitignore incluye .env (linea 5), .venv/ (linea 6), __pycache__/ (linea 8), build/, dist/.
 - C5: [x] RM06INP0 documentado en scripts/README_python_script.md:75. Ejecucion manual aceptada (decision abierta #5 del plan).
 - C6: [x] template_me12.xlsx existe (9098 bytes). No se pudo verificar contenido interno (Python no disponible), pero la documentacion y los validadores coinciden con las columnas esperadas.
@@ -45,7 +67,7 @@
 
 ## Observaciones
 
-1. BLOQUEANTE - C3: Falta Valido_Desde <= Valido_Hasta. validators.py valida formato de cada fecha individualmente (lineas 80-82) pero no compara entre ellas. El plan 5.4 exige esta regla. Agregar validacion cruzada en validate_excel() despues de validar formato individual.
+1. RESUELTO - C3: La validacion cruzada Valido_Desde <= Valido_Hasta esta implementada en validators.py:167-177. Normaliza ambas fechas a YYYymmdd y las compara; si desde > hasta, agrega error y elimina la fila.
 2. Bug en main.py:47-53: login_sap() imprime "Login exitoso" incondicionalmente aunque sapLogin() retorne temprano por error (GetObject falla linea 50, OpenConnection falla linea 61). sapLogin() no retorna estado de exito/fallo. El caller debe verificar que self.sap.session exista antes de reportar exito.
 3. Falta manejo de popup "session already open" en sapLogin() - el plan 5.2 paso 7 lo menciona como mejora. No es bloqueante pero es una omision respecto al plan.
 4. validators.py:62-63: ORG_COMPRAS esta hardcodeado a "1000". El plan 5.4 lo lista como campo requerido pero no especifica valor fijo. Esto es demasiado restrictivo.
